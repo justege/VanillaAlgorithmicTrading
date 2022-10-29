@@ -146,7 +146,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
 
     # based on the analysis of the in-sample data
     #turbulence_threshold = 140
-    insample_turbulence = df[(df.datadate<20151000) & (df.datadate>=20090000)]
+    insample_turbulence = df[(df.datadate<20221101) & (df.datadate>=20180101)]
     insample_turbulence = insample_turbulence.drop_duplicates(subset=['datadate'])
     insample_turbulence_threshold = np.quantile(insample_turbulence.turbulence.values, .90)
 
@@ -189,7 +189,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
 
         ############## Environment Setup starts ##############
         ## training env
-        train = data_split(df, start=20090000, end=unique_trade_date[i - rebalance_window - validation_window])
+        train = data_split(df, start=20180101, end=unique_trade_date[i - rebalance_window - validation_window])
         env_train = DummyVecEnv([lambda: StockEnvTrain(train)])
 
         ## validation env
@@ -202,12 +202,12 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
         ############## Environment Setup ends ##############
 
         ############## Training and Validation starts ##############
-        print("======Model training from: ", 20090000, "to ",
+        print("======Model training from: ", 20180101, "to ",
               unique_trade_date[i - rebalance_window - validation_window])
         # print("training: ",len(data_split(df, start=20090000, end=test.datadate.unique()[i-rebalance_window]) ))
         # print("==============Model Training===========")
         print("======A2C Training========")
-        model_a2c = train_A2C(env_train, model_name="A2C_30k_dow_{}".format(i), timesteps=30000)
+        model_a2c = train_A2C(env_train, model_name="A2C_3_dow_{}".format(i), timesteps=30000)
         print("======A2C Validation from: ", unique_trade_date[i - rebalance_window - validation_window], "to ",
               unique_trade_date[i - rebalance_window])
         DRL_validation(model=model_a2c, test_data=validation, test_env=env_val, test_obs=obs_val)
@@ -215,7 +215,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
         print("A2C Sharpe Ratio: ", sharpe_a2c)
 
         print("======PPO Training========")
-        model_ppo = train_PPO(env_train, model_name="PPO_100k_dow_{}".format(i), timesteps=100000)
+        model_ppo = train_PPO(env_train, model_name="PPO_3_dow_{}".format(i), timesteps=100000)
         print("======PPO Validation from: ", unique_trade_date[i - rebalance_window - validation_window], "to ",
               unique_trade_date[i - rebalance_window])
         DRL_validation(model=model_ppo, test_data=validation, test_env=env_val, test_obs=obs_val)
@@ -223,8 +223,8 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
         print("PPO Sharpe Ratio: ", sharpe_ppo)
 
         print("======DDPG Training========")
-        model_ddpg = train_DDPG(env_train, model_name="DDPG_10k_dow_{}".format(i), timesteps=10000)
-        #model_ddpg = train_TD3(env_train, model_name="DDPG_10k_dow_{}".format(i), timesteps=20000)
+        model_ddpg = train_DDPG(env_train, model_name="DDPG_3_dow_{}".format(i), timesteps=10000)
+
         print("======DDPG Validation from: ", unique_trade_date[i - rebalance_window - validation_window], "to ",
               unique_trade_date[i - rebalance_window])
         DRL_validation(model=model_ddpg, test_data=validation, test_env=env_val, test_obs=obs_val)
@@ -247,17 +247,48 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
             model_use.append('DDPG')
         ############## Training and Validation ends ##############
 
+
         ############## Trading starts ##############
         print("======Trading from: ", unique_trade_date[i - rebalance_window], "to ", unique_trade_date[i])
         #print("Used Model: ", model_ensemble)
+
         last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="ensemble",
                                              last_state=last_state_ensemble, iter_num=i,
                                              unique_trade_date=unique_trade_date,
                                              rebalance_window=rebalance_window,
                                              turbulence_threshold=turbulence_threshold,
                                              initial=initial)
+
+        model_ensemble = model_a2c
+        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="A2C",
+                                             last_state=last_state_ensemble, iter_num=i,
+                                             unique_trade_date=unique_trade_date,
+                                             rebalance_window=rebalance_window,
+                                             turbulence_threshold=turbulence_threshold,
+                                             initial=initial)
+
+        model_ensemble = model_ppo
+        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="PPO",
+                                             last_state=last_state_ensemble, iter_num=i,
+                                             unique_trade_date=unique_trade_date,
+                                             rebalance_window=rebalance_window,
+                                             turbulence_threshold=turbulence_threshold,
+                                             initial=initial)
+
+        model_ensemble = model_ddpg
+        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="DDPG",
+                                             last_state=last_state_ensemble, iter_num=i,
+                                             unique_trade_date=unique_trade_date,
+                                             rebalance_window=rebalance_window,
+                                             turbulence_threshold=turbulence_threshold,
+                                             initial=initial)
+
+
+
+
         # print("============Trading Done============")
         ############## Trading ends ##############
 
     end = time.time()
+
     print("Ensemble Strategy took: ", (end - start) / 60, " minutes")
