@@ -42,7 +42,7 @@ data.cci = data.cci.apply(np.int64)
 data.adx = data.adx.apply(np.int64)
 
 
-train = data_split(data, start=20180101, end=20210101)
+train = data_split(data, start=20110101, end=20210101)
 validate = data_split(data, start=20210101, end=20220101)
 test_d = data_split(data, start=20220101, end=20221101)
 
@@ -55,7 +55,7 @@ vali_env = DummyVecEnv([lambda: StockEnvValid(validate)])
 BATCHES = 200
 TIMESTEPS = 20000
 
-seed = 2
+seed = 3
 env.seed(seed)
 test_env.seed(seed)
 vali_env.seed(seed)

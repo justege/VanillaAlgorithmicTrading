@@ -93,6 +93,7 @@ def DRL_prediction(df,
     ### make a prediction based on trained model###
 
     ## trading env
+
     trade_data = data_split(df, start=unique_trade_date[iter_num - rebalance_window], end=unique_trade_date[iter_num])
     env_trade = DummyVecEnv([lambda: StockEnvTrade(trade_data,
                                                    turbulence_threshold=turbulence_threshold,
@@ -137,6 +138,10 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
     # for ensemble model, it's necessary to feed the last state
     # of the previous model to the current model as the initial state
     last_state_ensemble = []
+    last_state_ddpg = []
+    last_state_ppo = []
+    last_state_a2c = []
+
 
     ppo_sharpe_list = []
     ddpg_sharpe_list = []
@@ -146,7 +151,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
 
     # based on the analysis of the in-sample data
     #turbulence_threshold = 140
-    insample_turbulence = df[(df.datadate<20221101) & (df.datadate>=20180101)]
+    insample_turbulence = df[(df.datadate<20221101) & (df.datadate>=20110101)]
     insample_turbulence = insample_turbulence.drop_duplicates(subset=['datadate'])
     insample_turbulence_threshold = np.quantile(insample_turbulence.turbulence.values, .90)
 
@@ -189,7 +194,8 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
 
         ############## Environment Setup starts ##############
         ## training env
-        train = data_split(df, start=20180101, end=unique_trade_date[i - rebalance_window - validation_window])
+        train = data_split(df, start=20110101, end=unique_trade_date[i - rebalance_window - validation_window])
+        print(train)
         env_train = DummyVecEnv([lambda: StockEnvTrain(train)])
 
         ## validation env
@@ -202,7 +208,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
         ############## Environment Setup ends ##############
 
         ############## Training and Validation starts ##############
-        print("======Model training from: ", 20180101, "to ",
+        print("======Model training from: ", 20110101, "to ",
               unique_trade_date[i - rebalance_window - validation_window])
         # print("training: ",len(data_split(df, start=20090000, end=test.datadate.unique()[i-rebalance_window]) ))
         # print("==============Model Training===========")

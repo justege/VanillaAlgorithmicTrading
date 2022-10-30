@@ -51,7 +51,7 @@ def run_model() -> None:
     """Train the model."""
 
     # read and preprocess data
-    preprocessed_path = "data/0001_test.csv"
+    preprocessed_path = "data/0003_test.csv"
     if os.path.exists(preprocessed_path):
         data = pd.read_csv(preprocessed_path, index_col=0)
         data = add_turbulence(data)
