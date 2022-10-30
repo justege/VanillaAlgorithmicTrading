@@ -260,24 +260,24 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
                                              initial=initial)
 
         model_ensemble = model_a2c
-        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="A2C",
-                                             last_state=last_state_ensemble, iter_num=i,
+        last_state_a2c = DRL_prediction(df=df, model=model_ensemble, name="A2C",
+                                             last_state=last_state_a2c, iter_num=i,
                                              unique_trade_date=unique_trade_date,
                                              rebalance_window=rebalance_window,
                                              turbulence_threshold=turbulence_threshold,
                                              initial=initial)
 
         model_ensemble = model_ppo
-        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="PPO",
-                                             last_state=last_state_ensemble, iter_num=i,
+        last_state_ppo = DRL_prediction(df=df, model=model_ensemble, name="PPO",
+                                             last_state=last_state_ppo, iter_num=i,
                                              unique_trade_date=unique_trade_date,
                                              rebalance_window=rebalance_window,
                                              turbulence_threshold=turbulence_threshold,
                                              initial=initial)
 
         model_ensemble = model_ddpg
-        last_state_ensemble = DRL_prediction(df=df, model=model_ensemble, name="DDPG",
-                                             last_state=last_state_ensemble, iter_num=i,
+        last_state_ddpg = DRL_prediction(df=df, model=model_ensemble, name="DDPG",
+                                             last_state=last_state_ddpg, iter_num=i,
                                              unique_trade_date=unique_trade_date,
                                              rebalance_window=rebalance_window,
                                              turbulence_threshold=turbulence_threshold,
