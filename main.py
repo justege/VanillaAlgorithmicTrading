@@ -5,8 +5,8 @@ from stable_baselines3 import PPO
 
 import additional
 from environment import StockEnvTrain
-from environment_validation import StockEnvTest
-from environment_Trade import StockEnvValid
+from environment_validation import StockEnvValidation
+from environment_Trade import StockEnvTrade
 from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
@@ -29,28 +29,28 @@ def data_split(df, start, end):
     return data
 
 
-preprocessed_path = "0001_test.csv"
+preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/model/0001_test.csv"
 data = pd.read_csv(preprocessed_path, index_col=0)
 data = data.drop(columns=["datadate_full"])
-data = data[["datadate","tic","Close","open","high","low","volume","macd","rsi","cci","adx"]]
+data = data[["datadate","tic","adjcp","open","high","low","volume","macd","rsi","cci","adx"]]
 #print(data.to_string())
 
-data.Close = data.Close.apply(np.int64)
+data.adjcp = data.adjcp.apply(np.int64)
 data.macd = data.macd.apply(np.int64)
 data.rsi = data.rsi.apply(np.int64)
 data.cci = data.cci.apply(np.int64)
 data.adx = data.adx.apply(np.int64)
 
 
-train = data_split(data, start=20110101, end=20210101)
+train = data_split(data, start=20120101, end=20210101)
 validate = data_split(data, start=20210101, end=20220101)
 test_d = data_split(data, start=20220101, end=20221101)
 
 
 
 env = DummyVecEnv([lambda: StockEnvTrain(train)])
-test_env = DummyVecEnv([lambda: StockEnvTest(test_d)])
-vali_env = DummyVecEnv([lambda: StockEnvValid(validate)])
+test_env = DummyVecEnv([lambda: StockEnvTrain(test_d)])
+vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
 
 BATCHES = 200
 TIMESTEPS = 20000
@@ -78,7 +78,7 @@ batch_sharpeL_train = []
 batch_FassetL_train = []
 obs = vali_env.reset()
 
-FIRSTMODEL = 1
+FIRSTMODEL = 0
 
 for batch in range(FIRSTMODEL,BATCHES):
     env.reset()
@@ -88,12 +88,13 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = PPO('MlpPolicy', verbose=1, tensorboard_log=logdir, ent_coef = 0.005)
+        model = PPO('MlpPolicy', env=env, verbose=1, tensorboard_log=logdir, ent_coef = 0.005)
         FIRSTMODEL = 1
     else:
         print('loading Model' + str(batch-1))
-        model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch - 1) + '.pth')
+        model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch-1) + '.pth')
         model.set_env(env)
+        model.learn(total_timesteps=int(TIMESTEPS))
 
     rewardsl_train = []
     rewardsl_v = []
@@ -107,6 +108,7 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     score = 0
 
+    model.save("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch) + '.pth')
     print('-----testing period validating----')
     for i in range(10):
         done = 0
@@ -116,16 +118,15 @@ for batch in range(FIRSTMODEL,BATCHES):
             score = score + rewards
             if done:
                 rewardsl_train.append(score)
-                sharpel_train.append(env.sharpe)
-                cumretl_train.append(env.final_asset_value)
+                #sharpel_train.append(env.sharpe)
+                #cumretl_train.append(env.final_asset_value)
                 score = 0
                 env.reset()
 
     train_batch_rewardsl.append(np.array(rewardsl_train).mean())
-    batch_sharpeL_train.append(np.array(sharpel_train).mean())
-    batch_FassetL_train.append(np.array(cumretl_train).mean())
-
-
+    #batch_sharpeL_train.append(np.array(sharpel_train).mean())
+    #batch_FassetL_train.append(np.array(cumretl_train).mean())
+"""
     print('-----begin validating----')
     for i in range(10):
         done = 0
@@ -173,4 +174,5 @@ print('mean of scores:{}'.format(np.mean(df_scores)))
 rewardsl = np.array(t_batch_rewardsl).mean()
 print(rewardsl)
 
+"""
 
