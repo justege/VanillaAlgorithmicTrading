@@ -18,8 +18,8 @@ INITIAL_ACCOUNT_BALANCE = 1
 # total number of stocks in our portfolio
 STOCK_DIM = 3
 # transaction fee: 1/1000 reasonable percentage
-TRANSACTION_FEE_PERCENT = 0.00125
-REWARD_SCALING = 1e-4
+TRANSACTION_FEE_PERCENT = 0.0025
+REWARD_SCALING = 10000
 
 
 #[-0.7*HMAX_NORMALIZE, 0.5*HMAX_NORMALIZE,0.3*HMAX_NORMALIZE]
@@ -57,8 +57,16 @@ class StockEnvTrain(gym.Env):
         self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
         self.rewards_memory = []
         self.trades = 0
+        self.P_t_0 = 0
         # self.reset()
         self._seed()
+
+        self.end_total_asset = [1, 1, 1]
+        self.begin_total_asset = [1,1,1]
+        self.W_t_1 = [1,0,0,0]
+        self.W_t = [1, 0, 0, 0]
+        self.Yt = self.data.adjcp.values.tolist()
+        self.P_t_1 =  1
 
 
 
@@ -70,7 +78,7 @@ class StockEnvTrain(gym.Env):
 
         available_amount = (1 -  sum(np.array(self.state[:(index)])))  # 1 -sum( idx1, idx2)
 
-
+        p = np.array(self.state[:(4)])
         #print("available_amount {}".format(float(available_amount)))
 
         previous_action = self.state[index  + 1]
@@ -79,11 +87,9 @@ class StockEnvTrain(gym.Env):
 
         #print("min(available_amount, action) {}".format(min(available_amount, action)))
 
-        self.state[index  + 1] = min(available_amount, action)
+        self.state[index] = min(available_amount, action)
 
         #print("self.state[index  + 1] {}".format(self.state[index  + 1]))
-
-        self.cost += (abs(self.state[index + STOCK_DIM +1] * min(available_amount, action) - previous_action) * TRANSACTION_FEE_PERCENT)
         self.trades += 1
 
     def step(self, actions):
@@ -95,9 +101,6 @@ class StockEnvTrain(gym.Env):
             plt.plot(self.asset_memory, 'r')
             plt.savefig('results/account_value_train.png')
             plt.close()
-            end_total_asset = self.state[0] + \
-                              sum(np.array(self.state[1:(STOCK_DIM + 1)]) * np.array(
-                                  self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
 
             # print("end_total_asset:{}".format(end_total_asset))
             df_total_value = pd.DataFrame(self.asset_memory)
@@ -109,35 +112,30 @@ class StockEnvTrain(gym.Env):
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
                      df_total_value['daily_return'].std()
-            # print("Sharpe: ",sharpe)
+
+            print("-------------------------------------------------FINISH---------------------")
+            print("Portfolio Value:{}".format(self.P_t_0))
+
+            print("Sharpe: ",sharpe)
             # print("=================================")
             df_rewards = pd.DataFrame(self.rewards_memory)
             # df_rewards.to_csv('results/account_rewards_train.csv')
-
-            # print('total asset: {}'.format(self.state[0]+ sum(np.array(self.state[1:29])*np.array(self.state[29:]))))
-            # with open('obs.pkl', 'wb') as f:
-            #    pickle.dump(self.state, f)
+            print('self.reward: {}'.format(np.mean(self.rewards_memory)))
 
             return self.state, self.reward, self.terminal, {}
 
         else:
             # print(np.array(self.state[1:29]))
-
             actions = actions
 
             # actions = (actions.astype(int))
             #print("actions {}".format(actions))
-
-
             self.state[0] = actions[0]
 
             #print("state before buying actions {}".format(self.state))
-
-
-            begin_total_asset = self.state[0] + \
-                                sum(np.array(self.state[1:(STOCK_DIM + 1)]) * np.array(
-                                    self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
             # print("begin_total_asset:{}".format(begin_total_asset))
+            v_t_1 = np.array([1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
+
 
             for index in range(1,STOCK_DIM+1):
                 # print('take buy action: {}'.format(actions[index]))
@@ -147,6 +145,8 @@ class StockEnvTrain(gym.Env):
             self.day += 1
             self.data = self.df.loc[self.day, :]
             # load next state
+
+
 
             self.state[0] = (1 - self.state[1] - self.state[2] - self.state[3])
 
@@ -160,24 +160,61 @@ class StockEnvTrain(gym.Env):
                          self.data.cci.values.tolist() + \
                          self.data.adx.values.tolist()
 
+            v_t_0 = np.array( [1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
+
             #print("state after buying actions {}".format(self.state))
 
-            end_total_asset = self.state[0] + \
-                              sum(np.array(self.state[1:(STOCK_DIM + 1)]) * np.array(
-                                  self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
+            self.W_t = np.array(self.state[:(STOCK_DIM + 1)])
 
-            self.asset_memory.append(end_total_asset)
-            # print("end_total_asset:{}".format(end_total_asset))
+            Y_t = np.divide(v_t_0,v_t_1)
 
-            self.reward = end_total_asset - begin_total_asset - self.cost
-            # print("step_reward:{}".format(self.reward))
-            self.rewards_memory.append(self.reward)
+            #print("-------------------")
+            #print("Y_t:{}".format(Y_t))
+            #print("P_t_1:{}".format(self.P_t_1))
+
+            #print("self.P_t_1 * Y_t:{}".format(self.P_t_1 * Y_t))
+            #print("W_t_1:{}".format(self.W_t_1))
+
+
+            """
+            Compare
+            """
+            self.cost = TRANSACTION_FEE_PERCENT * (
+                np.abs(self.W_t_1[1:] - self.W_t[1:])).sum()
+
+            self.P_t_0 = self.P_t_1 * (1 - self.cost) * np.dot(Y_t,self.W_t_1)
+            #print("P_t_0:{}".format(self.P_t_0))
+
+            self.W_t_1 = self.W_t
+
+            self.P_t_0 = np.clip(self.P_t_0, 0, np.inf)
+
+            self.asset_memory.append(self.P_t_0)
+
+            if self.P_t_0==0:
+                self.reward = -1
+            else:
+                self.reward = (self.P_t_0/self.P_t_1) - 1
+
+
+
+            self.P_t_1 = self.P_t_0
+
+            #print("step_reward:{}".format(self.reward))
 
             self.reward = self.reward * REWARD_SCALING
+            self.rewards_memory.append(self.reward)
+
+
 
         return self.state, self.reward, self.terminal, {}
 
     def reset(self):
+        self.P_t_1 =  1
+        self.P_t_0 = 0
+        self.W_t_1 = [1, 0 ,0 ,0]
+        self.W_t   = [1, 0 ,0 ,0]
+        self.Yt = self.data.adjcp.values.tolist()
         self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
         self.day = 0
         self.data = self.df.loc[self.day, :]

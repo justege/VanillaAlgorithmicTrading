@@ -35,14 +35,16 @@ data = data.drop(columns=["datadate_full"])
 data = data[["datadate","tic","adjcp","open","high","low","volume","macd","rsi","cci","adx"]]
 #print(data.to_string())
 
-data.adjcp = data.adjcp.apply(np.int64)
-data.macd = data.macd.apply(np.int64)
-data.rsi = data.rsi.apply(np.int64)
-data.cci = data.cci.apply(np.int64)
-data.adx = data.adx.apply(np.int64)
 
+data.adjcp = data.adjcp
+data.macd = data.macd
+data.rsi = data.rsi
+data.cci = data.cci
+data.adx = data.adx
 
-train = data_split(data, start=20120101, end=20210101)
+print(data.to_string())
+
+train = data_split(data, start=20180101, end=20210101)
 validate = data_split(data, start=20210101, end=20220101)
 test_d = data_split(data, start=20220101, end=20221101)
 
@@ -52,8 +54,8 @@ env = DummyVecEnv([lambda: StockEnvTrain(train)])
 test_env = DummyVecEnv([lambda: StockEnvTrain(test_d)])
 vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
 
-BATCHES = 200
-TIMESTEPS = 20000
+BATCHES = 20
+TIMESTEPS = 50000
 
 seed = 3
 env.seed(seed)
@@ -88,7 +90,7 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = PPO('MlpPolicy', env=env, verbose=1, tensorboard_log=logdir, ent_coef = 0.005)
+        model = PPO('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, ent_coef = 0.005)
         FIRSTMODEL = 1
     else:
         print('loading Model' + str(batch-1))
@@ -116,7 +118,9 @@ for batch in range(FIRSTMODEL,BATCHES):
             action, _states = model.predict(obs)
             obs, rewards, done, info = env.step(action)
             score = score + rewards
+
             if done:
+                print('score:{}'.format(score))
                 rewardsl_train.append(score)
                 #sharpel_train.append(env.sharpe)
                 #cumretl_train.append(env.final_asset_value)
