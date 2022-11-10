@@ -5,6 +5,7 @@ from gym.utils import seeding
 import gym
 from gym import spaces
 import matplotlib
+import csv
 
 
 matplotlib.use('Agg')
@@ -60,37 +61,20 @@ class StockEnvTrain(gym.Env):
         self.P_t_0 = 0
         # self.reset()
         self._seed()
-
-        self.end_total_asset = [1, 1, 1]
-        self.begin_total_asset = [1,1,1]
         self.W_t_1 = [1,0,0,0]
-        self.W_t = [1, 0, 0, 0]
+        self.W_t =   [1,0,0,0]
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
 
 
 
     def make_actions(self, index, action):
-        # perform buy action based on the sign of the action
+        available_amount = (1 -  sum(np.array(self.state[:(index)])))
+        if available_amount > 0:
+            self.trades += 1
+            self.state[index] = min(available_amount, action)
 
-        #print("np.array(self.state[(0):(index-1)]))) {}".format(self.state[0:index]))
-        #print("self.state[index + 1 + STOCK_DIM]  {}".format(self.state[index + 1 + STOCK_DIM] ))
 
-        available_amount = (1 -  sum(np.array(self.state[:(index)])))  # 1 -sum( idx1, idx2)
-
-        p = np.array(self.state[:(4)])
-        #print("available_amount {}".format(float(available_amount)))
-
-        previous_action = self.state[index  + 1]
-
-        #print("previous_action {}".format(previous_action))
-
-        #print("min(available_amount, action) {}".format(min(available_amount, action)))
-
-        self.state[index] = min(available_amount, action)
-
-        #print("self.state[index  + 1] {}".format(self.state[index  + 1]))
-        self.trades += 1
 
     def step(self, actions):
         # print(self.day)
@@ -102,25 +86,26 @@ class StockEnvTrain(gym.Env):
             plt.savefig('results/account_value_train.png')
             plt.close()
 
-            # print("end_total_asset:{}".format(end_total_asset))
             df_total_value = pd.DataFrame(self.asset_memory)
-            df_total_value.to_csv('results/account_value_train.csv')
-            # print("total_reward:{}".format(self.state[0]+sum(np.array(self.state[1:(STOCK_DIM+1)])*np.array(self.state[(STOCK_DIM+1):61]))- INITIAL_ACCOUNT_BALANCE ))
-            # print("total_cost: ", self.cost)
-            # print("total_trades: ", self.trades)
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
                      df_total_value['daily_return'].std()
 
-            print("-------------------------------------------------FINISH---------------------")
-            print("Portfolio Value:{}".format(self.P_t_0))
+            #print("-------------------------------------------------FINISH---------------------")
+            #print("Portfolio Value:{}".format(self.P_t_0))
+            #print("Sharpe: ",sharpe)
 
-            print("Sharpe: ",sharpe)
+            #column_name = ["Sharpe", "PortfolioValue", "AmountOfTrades"]  # The name of the columns
+
+
+            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Train.csv",index=False, mode='a', header=False)
+
+
             # print("=================================")
-            df_rewards = pd.DataFrame(self.rewards_memory)
-            # df_rewards.to_csv('results/account_rewards_train.csv')
-            print('self.reward: {}'.format(np.mean(self.rewards_memory)))
+            #df_rewards = pd.DataFrame(self.rewards_memory)
+            #df_rewards.to_csv('results/account_rewards_train.csv')
+            #print('self.reward: {}'.format(np.mean(self.rewards_memory)))
 
             return self.state, self.reward, self.terminal, {}
 
@@ -133,7 +118,6 @@ class StockEnvTrain(gym.Env):
             self.state[0] = actions[0]
 
             #print("state before buying actions {}".format(self.state))
-            # print("begin_total_asset:{}".format(begin_total_asset))
             v_t_1 = np.array([1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
 
 
@@ -182,6 +166,7 @@ class StockEnvTrain(gym.Env):
             self.cost = TRANSACTION_FEE_PERCENT * (
                 np.abs(self.W_t_1[1:] - self.W_t[1:])).sum()
 
+
             self.P_t_0 = self.P_t_1 * (1 - self.cost) * np.dot(Y_t,self.W_t_1)
             #print("P_t_0:{}".format(self.P_t_0))
 
@@ -193,17 +178,16 @@ class StockEnvTrain(gym.Env):
 
             if self.P_t_0==0:
                 self.reward = -1
+                self.rewards_memory.append(0)
             else:
                 self.reward = (self.P_t_0/self.P_t_1) - 1
-
-
+                self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0
 
             #print("step_reward:{}".format(self.reward))
-
             self.reward = self.reward * REWARD_SCALING
-            self.rewards_memory.append(self.reward)
+
 
 
 

@@ -51,8 +51,9 @@ test_d = data_split(data, start=20220101, end=20221101)
 
 
 env = DummyVecEnv([lambda: StockEnvTrain(train)])
-test_env = DummyVecEnv([lambda: StockEnvTrain(test_d)])
 vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
+test_env = DummyVecEnv([lambda: StockEnvTrade(test_d)])
+
 
 BATCHES = 20
 TIMESTEPS = 50000
@@ -78,7 +79,7 @@ batch_FassetL_validate = []
 
 batch_sharpeL_train = []
 batch_FassetL_train = []
-obs = vali_env.reset()
+
 
 FIRSTMODEL = 0
 
@@ -92,12 +93,15 @@ for batch in range(FIRSTMODEL,BATCHES):
         print('First Model')
         model = PPO('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, ent_coef = 0.005)
         FIRSTMODEL = 1
+        print('Model Finish')
     else:
         print('loading Model' + str(batch-1))
         model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch-1) + '.pth')
+        print('Model Finish')
         model.set_env(env)
         model.learn(total_timesteps=int(TIMESTEPS))
 
+    """
     rewardsl_train = []
     rewardsl_v = []
     t_rewardsl = []
@@ -107,31 +111,27 @@ for batch in range(FIRSTMODEL,BATCHES):
     cumretl_train = []
     cumretl_v = []
     t_cumretl = []
+    """
+
 
     score = 0
 
     model.save("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch) + '.pth')
     print('-----testing period validating----')
+    obs = env.reset()
     for i in range(10):
         done = 0
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = env.step(action)
-            score = score + rewards
-
             if done:
-                print('score:{}'.format(score))
-                rewardsl_train.append(score)
-                #sharpel_train.append(env.sharpe)
-                #cumretl_train.append(env.final_asset_value)
-                score = 0
                 env.reset()
-
-    train_batch_rewardsl.append(np.array(rewardsl_train).mean())
+    print('-----testing period done----')
+    #train_batch_rewardsl.append(np.array(rewardsl_train).mean())
     #batch_sharpeL_train.append(np.array(sharpel_train).mean())
     #batch_FassetL_train.append(np.array(cumretl_train).mean())
-"""
     print('-----begin validating----')
+    obs = vali_env.reset()
     for i in range(10):
         done = 0
         while not done:
@@ -139,39 +139,39 @@ for batch in range(FIRSTMODEL,BATCHES):
             obs, rewards, done, info = vali_env.step(action)
             score = score + rewards
             if done:
-                rewardsl_v.append(score)
-                sharpel_v.append(vali_env.sharpe)
-                cumretl_v.append(vali_env.final_asset_value)
+                #rewardsl_v.append(score)
+                #sharpel_v.append(vali_env.sharpe)
+                #cumretl_v.append(vali_env.final_asset_value)
                 score = 0
                 vali_env.reset()
 
-    batch_sharpeL_validate.append(np.array(sharpel_v).mean())
-    batch_FassetL_validate.append(np.array(cumretl_v).mean())
-    batch_rewardsl.append(np.array(rewardsl_v).mean())
+    #batch_sharpeL_validate.append(np.array(sharpel_v).mean())
+    #batch_FassetL_validate.append(np.array(cumretl_v).mean())
+    #batch_rewardsl.append(np.array(rewardsl_v).mean())
     print('-----finish validating----')
     print('-------Evaluating------')
+    obs = test_env.reset()
     for i in range(10):
         done = 0
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = test_env.step(action)
-            score = score + rewards
             if done:
-                t_rewardsl.append(score)
-                sharpel_train.append(test_env.sharpe)
-                cumretl_train.append(test_env.final_asset_value)
+                #t_rewardsl.append(score)
+                #sharpel_train.append(test_env.sharpe)
+                #cumretl_train.append(test_env.final_asset_value)
                 score = 0
                 test_env.reset()
                 break
 
-
-    t_batch_rewardsl.append(np.array(t_rewardsl).mean())
-    batch_sharpeL_test.append(np.array(sharpel_train).mean())
-    batch_FassetL_test.append(np.array(cumretl_train).mean())
-
+    #t_batch_rewardsl.append(np.array(t_rewardsl).mean())
+    #batch_sharpeL_test.append(np.array(sharpel_train).mean())
+    #batch_FassetL_test.append(np.array(cumretl_train).mean())
 
     print('-------Finished Evaluating------')
 
+
+"""
 df_scores = pd.DataFrame(list(zip(batch_number,train_batch_rewardsl,batch_rewardsl, t_batch_rewardsl,batch_sharpeL_test,batch_FassetL_test, batch_sharpeL_validate, batch_FassetL_validate, batch_sharpeL_train,batch_FassetL_train)))
 df_scores.to_csv('CSVs/PPO_results_eval_mean.csv', mode='a', encoding='utf-8', index=True)
 print('mean of scores:{}'.format(np.mean(df_scores)))
