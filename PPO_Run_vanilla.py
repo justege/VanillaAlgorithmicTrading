@@ -35,28 +35,27 @@ data = data.drop(columns=["datadate_full"])
 data = data[["datadate","tic","adjcp","open","high","low","volume","macd","rsi","cci","adx"]]
 #print(data.to_string())
 
-
-data.adjcp = data.adjcp
-data.macd = data.macd
-data.rsi = data.rsi
-data.cci = data.cci
-data.adx = data.adx
-
-print(data.to_string())
+data.adjcp = data.adjcp.apply(np.int64)
+data.macd = data.macd.apply(np.int64)
+data.rsi = data.rsi.apply(np.int64)
+data.cci = data.cci.apply(np.int64)
+data.adx = data.adx.apply(np.int64)
 
 train = data_split(data, start=20180101, end=20210101)
 validate = data_split(data, start=20210101, end=20220101)
-test_d = data_split(data, start=20220101, end=20221101)
+test = data_split(data, start=20220101, end=20221011)
 
+print(train)
+print(test)
 
 
 env = DummyVecEnv([lambda: StockEnvTrain(train)])
 vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
-test_env = DummyVecEnv([lambda: StockEnvTrade(test_d)])
+test_env = DummyVecEnv([lambda: StockEnvTrade(test)])
 
 
-BATCHES = 20
-TIMESTEPS = 50000
+BATCHES = 100
+TIMESTEPS = 10000
 
 seed = 3
 env.seed(seed)
@@ -91,7 +90,7 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = PPO('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, ent_coef = 0.005)
+        model = PPO('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, learning_rate=10e-5, batch_size=64, gamma=0.99)
         FIRSTMODEL = 1
         print('Model Finish')
     else:
@@ -100,7 +99,6 @@ for batch in range(FIRSTMODEL,BATCHES):
         print('Model Finish')
         model.set_env(env)
         model.learn(total_timesteps=int(TIMESTEPS))
-
     """
     rewardsl_train = []
     rewardsl_v = []
@@ -137,7 +135,6 @@ for batch in range(FIRSTMODEL,BATCHES):
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = vali_env.step(action)
-            score = score + rewards
             if done:
                 #rewardsl_v.append(score)
                 #sharpel_v.append(vali_env.sharpe)
@@ -156,13 +153,13 @@ for batch in range(FIRSTMODEL,BATCHES):
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = test_env.step(action)
+            score = score + rewards
             if done:
-                #t_rewardsl.append(score)
-                #sharpel_train.append(test_env.sharpe)
-                #cumretl_train.append(test_env.final_asset_value)
+                #rewardsl_v.append(score)
+                #sharpel_v.append(vali_env.sharpe)
+                #cumretl_v.append(vali_env.final_asset_value)
                 score = 0
                 test_env.reset()
-                break
 
     #t_batch_rewardsl.append(np.array(t_rewardsl).mean())
     #batch_sharpeL_test.append(np.array(sharpel_train).mean())

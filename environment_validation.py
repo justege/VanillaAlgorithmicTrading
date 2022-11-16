@@ -29,7 +29,7 @@ class StockEnvValidation(gym.Env):
     """A stock trading environment for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, df, day=0):
+    def __init__(self, df, day=0, iteration=''):
         # super(StockEnv, self).__init__()
         # money = 10 , scope = 1
         self.day = day
@@ -65,6 +65,7 @@ class StockEnvValidation(gym.Env):
         self.W_t =   [1,0,0,0]
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
+        self.iteration = iteration
 
 
 
@@ -83,14 +84,19 @@ class StockEnvValidation(gym.Env):
 
         if self.terminal:
             plt.plot(self.asset_memory, 'r')
-            plt.savefig('results/account_value_Validate.png')
+            plt.savefig('results/account_value_validation_{}.png'.format(self.iteration))
             plt.close()
+
+
+
 
             df_total_value = pd.DataFrame(self.asset_memory)
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
                      df_total_value['daily_return'].std()
+
+            df_total_value.to_csv('results/account_value_validation_{}.csv'.format(self.iteration))
 
             #print("-------------------------------------------------FINISH---------------------")
             #print("Portfolio Value:{}".format(self.P_t_0))
@@ -194,6 +200,7 @@ class StockEnvValidation(gym.Env):
         return self.state, self.reward, self.terminal, {}
 
     def reset(self):
+
         self.P_t_1 =  1
         self.P_t_0 = 0
         self.W_t_1 = [1, 0 ,0 ,0]

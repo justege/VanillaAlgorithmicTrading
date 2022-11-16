@@ -87,6 +87,7 @@ class StockEnvTrain(gym.Env):
             plt.close()
 
             df_total_value = pd.DataFrame(self.asset_memory)
+            df_total_value.to_csv('results/account_value_train.csv')
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
