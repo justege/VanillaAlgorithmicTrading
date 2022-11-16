@@ -84,19 +84,19 @@ class StockEnvValidation(gym.Env):
 
         if self.terminal:
             plt.plot(self.asset_memory, 'r')
-            plt.savefig('results/account_value_validation_{}.png'.format(self.iteration))
+            plt.savefig('results/account_value_validate_{}.png'.format(self.iteration))
             plt.close()
 
 
-
-
             df_total_value = pd.DataFrame(self.asset_memory)
+            df_total_value.to_csv('results/account_value_validate_{}.csv'.format(self.iteration))
             df_total_value.columns = ['account_value']
+
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
                      df_total_value['daily_return'].std()
 
-            df_total_value.to_csv('results/account_value_validation_{}.csv'.format(self.iteration))
+
 
             #print("-------------------------------------------------FINISH---------------------")
             #print("Portfolio Value:{}".format(self.P_t_0))
@@ -105,7 +105,7 @@ class StockEnvValidation(gym.Env):
             #column_name = ["Sharpe", "PortfolioValue", "AmountOfTrades"]  # The name of the columns
 
 
-            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Validation.csv",index=False, mode='a', header=False)
+            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Validate.csv",index=False, mode='a', header=False)
 
 
             # print("=================================")
@@ -116,6 +116,7 @@ class StockEnvValidation(gym.Env):
             return self.state, self.reward, self.terminal, {}
 
         else:
+            print(actions)
             # print(np.array(self.state[1:29]))
             actions = actions
 
@@ -193,6 +194,7 @@ class StockEnvValidation(gym.Env):
 
             #print("step_reward:{}".format(self.reward))
             self.reward = self.reward * REWARD_SCALING
+            print(actions)
 
 
 

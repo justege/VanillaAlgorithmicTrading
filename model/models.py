@@ -34,14 +34,14 @@ def train_A2C(env_train, model_name, timesteps=25000):
     return model
 
 
-def train_DDPG(env_train, model_name, timesteps=30000):
+def train_DDPG(env_train, model_name, timesteps=50000):
     """DDPG model"""
 
     # add the noise objects for DDPG
     n_actions = env_train.action_space.shape[-1]
     param_noise = None
     action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
-
+    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
     start = time.time()
     model = DDPG('MlpPolicy', env_train, action_noise=action_noise)
     model.learn(total_timesteps=timesteps)
@@ -51,7 +51,7 @@ def train_DDPG(env_train, model_name, timesteps=30000):
     print('Training time (DDPG): ', (end-start)/60,' minutes')
     return model
 
-def train_PPO(env_train, model_name, timesteps=100000):
+def train_PPO(env_train, model_name, timesteps=70000):
     """PPO model"""
 
     start = time.time()
@@ -88,7 +88,6 @@ def DRL_prediction(df,
                    iter_num,
                    unique_trade_date,
                    rebalance_window,
-                   turbulence_threshold,
                    initial):
     ### make a prediction based on trained model###
 
@@ -96,7 +95,6 @@ def DRL_prediction(df,
 
     trade_data = data_split(df, start=unique_trade_date[iter_num - rebalance_window], end=unique_trade_date[iter_num])
     env_trade = DummyVecEnv([lambda: StockEnvTrade(trade_data,
-                                                   turbulence_threshold=turbulence_threshold,
                                                    initial=initial,
                                                    previous_state=last_state,
                                                    model_name=name,
@@ -124,7 +122,7 @@ def DRL_validation(model, test_data, test_env, test_obs) -> None:
 
 def get_validation_sharpe(iteration):
     ###Calculate Sharpe ratio based on validation results###
-    df_total_value = pd.read_csv('results/account_value_validation_{}.csv'.format(iteration), index_col=0)
+    df_total_value = pd.read_csv('results/account_value_validate_{}.csv'.format(iteration), index_col=0)
     df_total_value.columns = ['account_value_train']
     df_total_value['daily_return'] = df_total_value.pct_change(1)
     sharpe = (4 ** 0.5) * df_total_value['daily_return'].mean() / \
@@ -149,11 +147,7 @@ def run_ensemble_strategy(df, unique_trade_date, rebalance_window, validation_wi
 
     model_use = []
 
-    # based on the analysis of the in-sample data
-    #turbulence_threshold = 140
-    insample_turbulence = df[(df.datadate<20221101) & (df.datadate>=20110101)]
-    insample_turbulence = insample_turbulence.drop_duplicates(subset=['datadate'])
-    insample_turbulence_threshold = np.quantile(insample_turbulence.turbulence.values, .90)
+
 
     start = time.time()
     for i in range(rebalance_window + validation_window, len(unique_trade_date), rebalance_window):

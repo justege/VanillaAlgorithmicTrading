@@ -181,7 +181,7 @@ class StockEnvTrain(gym.Env):
                 self.reward = -1
                 self.rewards_memory.append(0)
             else:
-                self.reward = (self.P_t_0/self.P_t_1) - 1
+                self.reward = np.log(self.P_t_0/self.P_t_1) # or this: (self.P_t_0/self.P_t_1)
                 self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0

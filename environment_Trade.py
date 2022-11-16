@@ -66,6 +66,9 @@ class StockEnvTrade(gym.Env):
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
         self.previous_state = previous_state
+        self.initial = initial
+        self.model_name = model_name
+        self.iteration = iteration
 
 
 
@@ -84,10 +87,13 @@ class StockEnvTrade(gym.Env):
 
         if self.terminal:
             plt.plot(self.asset_memory, 'r')
-            plt.savefig('results/account_value_Trade.png')
-            plt.close()
 
+            plt.savefig('results/account_value_trade_{}_{}.png'.format(self.model_name, self.iteration))
+            plt.close()
             df_total_value = pd.DataFrame(self.asset_memory)
+            df_total_value.to_csv('results/account_value_trade_{}_{}.csv'.format(self.model_name, self.iteration))
+
+
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
@@ -219,6 +225,8 @@ class StockEnvTrade(gym.Env):
             previous_total_asset = self.previous_state[0] + \
                                    sum(np.array(self.previous_state[1:(STOCK_DIM + 1)]) * np.array(
                                        self.previous_state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
+
+            print(previous_total_asset)
 
             self.asset_memory = [previous_total_asset]
             self.state = [self.previous_state[0]] + \
