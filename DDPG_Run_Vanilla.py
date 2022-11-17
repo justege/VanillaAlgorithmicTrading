@@ -55,7 +55,7 @@ vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
 test_env = DummyVecEnv([lambda: StockEnvTrade(test)])
 
 
-BATCHES = 100
+BATCHES = 1
 TIMESTEPS = 10000
 
 seed = 3
@@ -92,9 +92,9 @@ for batch in range(FIRSTMODEL,BATCHES):
     if FIRSTMODEL == 0:
         print('First Model')
         n_actions = env.action_space.shape[-1]
-        action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
-        model = DDPG('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, learning_rate=10e-5, gamma=0.99, action_noise=action_noise)
-
+        action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
+        model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=0)
+        model.learn(total_timesteps=int(TIMESTEPS))
         FIRSTMODEL = 1
         print('Model Finish')
     else:

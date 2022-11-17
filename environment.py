@@ -69,7 +69,7 @@ class StockEnvTrain(gym.Env):
 
 
     def make_actions(self, index, action):
-        available_amount = (1 -  sum(np.array(self.state[:(index)])))
+        available_amount = (1 -  sum(np.array(self.state[1:(index)])))
         if available_amount > 0:
             self.trades += 1
             self.state[index] = min(available_amount, action)
@@ -177,8 +177,13 @@ class StockEnvTrain(gym.Env):
 
             self.asset_memory.append(self.P_t_0)
 
-            if self.P_t_0==0:
+
+            if self.P_t_0 == 0:
                 self.reward = -1
+                self.rewards_memory.append(0)
+
+            elif self.state[0]==1:
+                self.reward = -0.5
                 self.rewards_memory.append(0)
             else:
                 self.reward = np.log(self.P_t_0/self.P_t_1) # or this: (self.P_t_0/self.P_t_1)
