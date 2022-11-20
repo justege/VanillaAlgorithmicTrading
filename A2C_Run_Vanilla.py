@@ -7,6 +7,7 @@ import additional
 from environment import StockEnvTrain
 from environment_validation import StockEnvValidation
 from environment_Trade import StockEnvTrade
+from basicTradingEnv import BasicStockEnvTrain
 from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
@@ -29,32 +30,27 @@ def data_split(df, start, end):
     return data
 
 
-preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/model/0001_test.csv"
+preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/synthetic_portolio_ready.csv"
 data = pd.read_csv(preprocessed_path, index_col=0)
-data = data.drop(columns=["datadate_full"])
-data = data[["datadate","tic","adjcp","open","high","low","volume","macd","rsi","cci","adx"]]
 #print(data.to_string())
 
-data.adjcp = data.adjcp.apply(np.int64)
-data.macd = data.macd.apply(np.int64)
-data.rsi = data.rsi.apply(np.int64)
-data.cci = data.cci.apply(np.int64)
-data.adx = data.adx.apply(np.int64)
 
-train = data_split(data, start=20180101, end=20210101)
-validate = data_split(data, start=20210101, end=20220101)
-test = data_split(data, start=20220101, end=20221011)
+train = data_split(data, start=20200101, end=20200201)
+validate = data_split(data, start=20200201, end=20200301)
+test = data_split(data, start=20200201, end=20200301)
+
+print(data.daily_return.values.tolist())
 
 print(train)
 print(test)
 
 
-env = DummyVecEnv([lambda: StockEnvTrain(train)])
-vali_env = DummyVecEnv([lambda: StockEnvValidation(validate)])
-test_env = DummyVecEnv([lambda: StockEnvTrade(test)])
+env = DummyVecEnv([lambda: BasicStockEnvTrain(train)])
+vali_env = DummyVecEnv([lambda: BasicStockEnvTrain(validate)])
+test_env = DummyVecEnv([lambda: BasicStockEnvTrain(test)])
 
 
-BATCHES = 100
+BATCHES = 1
 TIMESTEPS = 10000
 
 seed = 3
