@@ -117,9 +117,9 @@ class BasicStockEnvTrain(gym.Env):
             return self.state, self.reward, self.terminal, {}
 
         else:
-            if  self.day==0:
+            if self.day==0:
                 self.whole_weights = actions
-                print('first day weights:{}'.format(actions))
+
 
             actions = self.whole_weights
             # print(np.array(self.state[1:29]))
@@ -159,7 +159,6 @@ class BasicStockEnvTrain(gym.Env):
             self.W_t = np.array(self.state[:(STOCK_DIM + 1)])
 
             Y_t = np.divide(v_t_0,v_t_1)
-
             #print("-------------------")
             #print("Y_t:{}".format(Y_t))
             #print("P_t_1:{}".format(self.P_t_1))
@@ -185,21 +184,16 @@ class BasicStockEnvTrain(gym.Env):
             self.asset_memory.append(self.P_t_0)
 
 
-            if self.P_t_0 == 0:
-                self.reward = -1
-                self.rewards_memory.append(0)
-
-            elif self.state[0]==1:
-                self.reward = -0.5
-                self.rewards_memory.append(0)
-            else:
-                self.reward = np.log(self.P_t_0/self.P_t_1) # or this: (self.P_t_0/self.P_t_1)
-                self.rewards_memory.append(self.reward)
+            self.reward = self.P_t_0/self.P_t_1 # or this: (self.P_t_0/self.P_t_1)
+            self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0
 
             #print("step_reward:{}".format(self.reward))
             self.reward = self.reward * REWARD_SCALING
+
+            if self.day==1:
+                print(self.state)
 
 
 

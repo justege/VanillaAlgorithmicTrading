@@ -35,9 +35,9 @@ data = pd.read_csv(preprocessed_path, index_col=0)
 #print(data.to_string())
 
 
-train = data_split(data, start=20200101, end=20200201)
-validate = data_split(data, start=20200201, end=20200301)
-test = data_split(data, start=20200201, end=20200301)
+train = data_split(data, start=20200101, end=20200401)
+validate = data_split(data, start=20200101, end=20200401)
+test = data_split(data, start=20200101, end=20200401)
 
 print(data.daily_return.values.tolist())
 
@@ -86,7 +86,7 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = A2C('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir, learning_rate=10e-5, gamma=0.99)
+        model = A2C('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir)
         FIRSTMODEL = 1
         print('Model Finish')
     else:
