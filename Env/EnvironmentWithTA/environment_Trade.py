@@ -25,11 +25,11 @@ REWARD_SCALING = 10000
 
 #[-0.7*HMAX_NORMALIZE, 0.5*HMAX_NORMALIZE,0.3*HMAX_NORMALIZE]
 # w1, w2, w3,
-class StockEnvTrain(gym.Env):
+class StockEnvTradeWithTA(gym.Env):
     """A stock trading environment for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, df, day=0):
+    def __init__(self, df, day=0, initial=True, previous_state=[], model_name='', iteration=''):
         # super(StockEnv, self).__init__()
         # money = 10 , scope = 1
         self.day = day
@@ -65,11 +65,15 @@ class StockEnvTrain(gym.Env):
         self.W_t =   [1,0,0,0]
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
+        self.previous_state = previous_state
+        self.initial = initial
+        self.model_name = model_name
+        self.iteration = iteration
 
 
 
     def make_actions(self, index, action):
-        available_amount = (1 -  sum(np.array(self.state[1:(index)])))
+        available_amount = (1 -  sum(np.array(self.state[:(index)])))
         if available_amount > 0:
             self.trades += 1
             self.state[index] = min(available_amount, action)
@@ -83,11 +87,13 @@ class StockEnvTrain(gym.Env):
 
         if self.terminal:
             plt.plot(self.asset_memory, 'r')
-            plt.savefig('results/account_value_train.png')
-            plt.close()
 
+            plt.savefig('results/account_value_trade_{}_{}.png'.format(self.model_name, self.iteration))
+            plt.close()
             df_total_value = pd.DataFrame(self.asset_memory)
-            df_total_value.to_csv('results/account_value_train.csv')
+            df_total_value.to_csv('results/account_value_trade_{}_{}.csv'.format(self.model_name, self.iteration))
+
+
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
@@ -96,18 +102,13 @@ class StockEnvTrain(gym.Env):
             #print("-------------------------------------------------FINISH---------------------")
             #print("Portfolio Value:{}".format(self.P_t_0))
             #print("Sharpe: ",sharpe)
-
             #column_name = ["Sharpe", "PortfolioValue", "AmountOfTrades"]  # The name of the columns
-
-
-            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Train.csv",index=False, mode='a', header=False)
-
+            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Trade.csv",index=False, mode='a', header=False)
 
             # print("=================================")
             #df_rewards = pd.DataFrame(self.rewards_memory)
             #df_rewards.to_csv('results/account_rewards_train.csv')
             #print('self.reward: {}'.format(np.mean(self.rewards_memory)))
-
             return self.state, self.reward, self.terminal, {}
 
         else:
@@ -177,16 +178,11 @@ class StockEnvTrain(gym.Env):
 
             self.asset_memory.append(self.P_t_0)
 
-
-            if self.P_t_0 == 0:
+            if self.P_t_0==0:
                 self.reward = -1
                 self.rewards_memory.append(0)
-
-            elif self.state[0]==1:
-                self.reward = -0.5
-                self.rewards_memory.append(0)
             else:
-                self.reward = np.log(self.P_t_0/self.P_t_1) # or this: (self.P_t_0/self.P_t_1)
+                self.reward = (self.P_t_0/self.P_t_1) - 1
                 self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0
@@ -200,26 +196,48 @@ class StockEnvTrain(gym.Env):
         return self.state, self.reward, self.terminal, {}
 
     def reset(self):
-        self.P_t_1 =  1
+        self.P_t_1 = 1
         self.P_t_0 = 0
-        self.W_t_1 = [1, 0 ,0 ,0]
-        self.W_t   = [1, 0 ,0 ,0]
+        self.W_t_1 = [1, 0, 0, 0]
+        self.W_t = [1, 0, 0, 0]
         self.Yt = self.data.adjcp.values.tolist()
-        self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
+
         self.day = 0
         self.data = self.df.loc[self.day, :]
         self.cost = 0
         self.trades = 0
         self.terminal = False
         self.rewards_memory = []
-        # initiate state
-        self.state = [INITIAL_ACCOUNT_BALANCE] + \
-                     [0] * STOCK_DIM + \
-                     self.data.adjcp.values.tolist() + \
-                     self.data.macd.values.tolist() + \
-                     self.data.rsi.values.tolist() + \
-                     self.data.cci.values.tolist() + \
-                     self.data.adx.values.tolist()
+
+        if self.initial:
+            self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
+
+            # initiate state
+            self.state = [INITIAL_ACCOUNT_BALANCE] + \
+                         [0] * STOCK_DIM + \
+                         self.data.adjcp.values.tolist() + \
+                         self.data.macd.values.tolist() + \
+                         self.data.rsi.values.tolist() + \
+                         self.data.cci.values.tolist() + \
+                         self.data.adx.values.tolist()
+
+        else:
+            previous_total_asset = self.previous_state[0] + \
+                                   sum(np.array(self.previous_state[1:(STOCK_DIM + 1)]) * np.array(
+                                       self.previous_state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
+
+            print(previous_total_asset)
+
+            self.asset_memory = [previous_total_asset]
+            self.state = [self.previous_state[0]] + \
+                         self.previous_state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]  + \
+                         self.data.adjcp.values.tolist() + \
+                         self.data.macd.values.tolist() + \
+                         self.data.rsi.values.tolist() + \
+                         self.data.cci.values.tolist() + \
+                         self.data.adx.values.tolist()
+
+
         # iteration += 1
         return self.state
 

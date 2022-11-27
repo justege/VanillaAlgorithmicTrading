@@ -1,17 +1,17 @@
 import gym
 import time
 from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3 import A2C
+from stable_baselines3 import DDPG
 
 import additional
-from environment import StockEnvTrain
-from environment_validation import StockEnvValidation
-from environment_Trade import StockEnvTrade
-from basicTradingEnv import BasicStockEnvTrain
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA import StockEnvTrainWithoutTA
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_Trade import StockEnvTradeWithoutTA
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_validation import StockEnvValidationWithTA
 from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
 from additional import *
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
 # Parallel environments
 
@@ -30,28 +30,29 @@ def data_split(df, start, end):
     return data
 
 
-preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/synthetic_portolio_ready.csv"
+preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/model/0001_test.csv"
 data = pd.read_csv(preprocessed_path, index_col=0)
+data = data.drop(columns=["datadate_full"])
+data = data[["datadate","tic","adjcp"]]
 #print(data.to_string())
 
 
-train = data_split(data, start=20200101, end=20200401)
-validate = data_split(data, start=20200101, end=20200401)
-test = data_split(data, start=20200101, end=20200401)
+train = data_split(data, start=20171010, end=20220101)
+validate = data_split(data, start=20220101, end=20220601)
+test = data_split(data, start=20220601, end=20221011)
 
-print(data.daily_return.values.tolist())
+
+env = DummyVecEnv([lambda: StockEnvTrainWithoutTA(train)])
+test_env = DummyVecEnv([lambda: StockEnvTradeWithoutTA(test)])
+vali_env = DummyVecEnv([lambda: StockEnvValidationWithTA(validate)])
 
 print(train)
 print(test)
 
 
-env = DummyVecEnv([lambda: BasicStockEnvTrain(train)])
-vali_env = DummyVecEnv([lambda: BasicStockEnvTrain(validate)])
-test_env = DummyVecEnv([lambda: BasicStockEnvTrain(test)])
 
-
-BATCHES = 1
-TIMESTEPS = 10000
+BATCHES = 20
+TIMESTEPS = 5000
 
 seed = 3
 env.seed(seed)
@@ -86,12 +87,15 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = A2C('MlpPolicy', env=env, verbose=0, tensorboard_log=logdir)
+        n_actions = env.action_space.shape[-1]
+        action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=0.5 * np.ones(n_actions))
+        model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=0, learning_rate=0.005, batch_size=32)
+        model.learn(total_timesteps=int(TIMESTEPS))
         FIRSTMODEL = 1
         print('Model Finish')
     else:
         print('loading Model' + str(batch-1))
-        model = A2C.load("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch-1) + '.pth')
+        model = DDPG.load("runs/DDPG_" + str(TIMESTEPS) + '_' + str(batch-1) + '.pth')
         print('Model Finish')
         model.set_env(env)
         model.learn(total_timesteps=int(TIMESTEPS))
@@ -110,7 +114,7 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     score = 0
 
-    model.save("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch) + '.pth')
+    model.save("runs/DDPG_" + str(TIMESTEPS) + '_' + str(batch) + '.pth')
     print('-----testing period validating----')
     obs = env.reset()
     for i in range(10):

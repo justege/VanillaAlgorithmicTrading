@@ -20,16 +20,16 @@ INITIAL_ACCOUNT_BALANCE = 1
 STOCK_DIM = 3
 # transaction fee: 1/1000 reasonable percentage
 TRANSACTION_FEE_PERCENT = 0.0025
-REWARD_SCALING = 10000
+REWARD_SCALING = 100000
 
 
 #[-0.7*HMAX_NORMALIZE, 0.5*HMAX_NORMALIZE,0.3*HMAX_NORMALIZE]
 # w1, w2, w3,
-class StockEnvValidation(gym.Env):
+class StockEnvTrain(gym.Env):
     """A stock trading environment for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, df, day=0, iteration=''):
+    def __init__(self, df, day=0):
         # super(StockEnv, self).__init__()
         # money = 10 , scope = 1
         self.day = day
@@ -65,12 +65,11 @@ class StockEnvValidation(gym.Env):
         self.W_t =   [1,0,0,0]
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
-        self.iteration = iteration
 
 
 
     def make_actions(self, index, action):
-        available_amount = (1 -  sum(np.array(self.state[:(index)])))
+        available_amount = (1 -  sum(np.array(self.state[1:(index)])))
         if available_amount > 0:
             self.trades += 1
             self.state[index] = min(available_amount, action)
@@ -83,20 +82,17 @@ class StockEnvValidation(gym.Env):
         # print(actions)
 
         if self.terminal:
+            print('terminal')
             plt.plot(self.asset_memory, 'r')
-            plt.savefig('results/account_value_validate_{}.png'.format(self.iteration))
+            plt.savefig('results/account_value_train.png')
             plt.close()
 
-
             df_total_value = pd.DataFrame(self.asset_memory)
-            df_total_value.to_csv('results/account_value_validate_{}.csv'.format(self.iteration))
+            df_total_value.to_csv('results/account_value_train.csv')
             df_total_value.columns = ['account_value']
-
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
                      df_total_value['daily_return'].std()
-
-
 
             #print("-------------------------------------------------FINISH---------------------")
             #print("Portfolio Value:{}".format(self.P_t_0))
@@ -105,7 +101,7 @@ class StockEnvValidation(gym.Env):
             #column_name = ["Sharpe", "PortfolioValue", "AmountOfTrades"]  # The name of the columns
 
 
-            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Validate.csv",index=False, mode='a', header=False)
+            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Train.csv",index=False, mode='a', header=False)
 
 
             # print("=================================")
@@ -116,7 +112,6 @@ class StockEnvValidation(gym.Env):
             return self.state, self.reward, self.terminal, {}
 
         else:
-            print(actions)
             # print(np.array(self.state[1:29]))
             actions = actions
 
@@ -183,18 +178,15 @@ class StockEnvValidation(gym.Env):
 
             self.asset_memory.append(self.P_t_0)
 
-            if self.P_t_0==0:
-                self.reward = -1
-                self.rewards_memory.append(0)
-            else:
-                self.reward = (self.P_t_0/self.P_t_1) - 1
-                self.rewards_memory.append(self.reward)
+
+
+            self.reward = self.P_t_0/self.P_t_1 # or this: (self.P_t_0/self.P_t_1)
+            self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0
 
             #print("step_reward:{}".format(self.reward))
             self.reward = self.reward * REWARD_SCALING
-            print(actions)
 
 
 
@@ -202,7 +194,6 @@ class StockEnvValidation(gym.Env):
         return self.state, self.reward, self.terminal, {}
 
     def reset(self):
-
         self.P_t_1 =  1
         self.P_t_0 = 0
         self.W_t_1 = [1, 0 ,0 ,0]

@@ -25,11 +25,11 @@ REWARD_SCALING = 10000
 
 #[-0.7*HMAX_NORMALIZE, 0.5*HMAX_NORMALIZE,0.3*HMAX_NORMALIZE]
 # w1, w2, w3,
-class StockEnvTrade(gym.Env):
+class StockEnvTradeWithoutTA(gym.Env):
     """A stock trading environment for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, df, day=0, initial=True, previous_state=[], model_name='', iteration=''):
+    def __init__(self, df, day=0):
         # super(StockEnv, self).__init__()
         # money = 10 , scope = 1
         self.day = day
@@ -39,18 +39,14 @@ class StockEnvTrade(gym.Env):
         self.action_space = spaces.Box(low=0, high=1, shape=(STOCK_DIM + 1,))
         # Shape = 181: [Current Balance]+[prices 1-30]+[owned shares 1-30]
         # +[macd 1-30]+ [rsi 1-30] + [cci 1-30] + [adx 1-30]
-        self.observation_space = spaces.Box(low=0, high=np.inf, shape=(19,))
+        self.observation_space = spaces.Box(low=0, high=np.inf, shape=(7,))
         # load data from a pandas dataframe
         self.data = self.df.loc[self.day, :]
         self.terminal = False
         # initalize state
         self.state = [INITIAL_ACCOUNT_BALANCE] + \
                      [0] * STOCK_DIM + \
-                     self.data.adjcp.values.tolist() + \
-                     self.data.macd.values.tolist() + \
-                     self.data.rsi.values.tolist() + \
-                     self.data.cci.values.tolist() + \
-                     self.data.adx.values.tolist()
+                     self.data.adjcp.values.tolist()
         # initialize reward
         self.reward = 0
         self.cost = 0
@@ -65,15 +61,11 @@ class StockEnvTrade(gym.Env):
         self.W_t =   [1,0,0,0]
         self.Yt = self.data.adjcp.values.tolist()
         self.P_t_1 =  1
-        self.previous_state = previous_state
-        self.initial = initial
-        self.model_name = model_name
-        self.iteration = iteration
 
 
 
     def make_actions(self, index, action):
-        available_amount = (1 -  sum(np.array(self.state[:(index)])))
+        available_amount = (1 -  sum(np.array(self.state[1:(index)])))
         if available_amount > 0:
             self.trades += 1
             self.state[index] = min(available_amount, action)
@@ -87,13 +79,11 @@ class StockEnvTrade(gym.Env):
 
         if self.terminal:
             plt.plot(self.asset_memory, 'r')
-
-            plt.savefig('results/account_value_trade_{}_{}.png'.format(self.model_name, self.iteration))
+            plt.savefig('results/account_value_trade.png')
             plt.close()
+
             df_total_value = pd.DataFrame(self.asset_memory)
-            df_total_value.to_csv('results/account_value_trade_{}_{}.csv'.format(self.model_name, self.iteration))
-
-
+            df_total_value.to_csv('results/account_value_trade.csv')
             df_total_value.columns = ['account_value']
             df_total_value['daily_return'] = df_total_value.pct_change(1)
             sharpe = (252 ** 0.5) * df_total_value['daily_return'].mean() / \
@@ -102,18 +92,25 @@ class StockEnvTrade(gym.Env):
             #print("-------------------------------------------------FINISH---------------------")
             #print("Portfolio Value:{}".format(self.P_t_0))
             #print("Sharpe: ",sharpe)
+
             #column_name = ["Sharpe", "PortfolioValue", "AmountOfTrades"]  # The name of the columns
-            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("Results_Trade.csv",index=False, mode='a', header=False)
+
+
+            pd.DataFrame({'sharpe':[sharpe],'PortfolioValue':[self.P_t_0],'trades':[self.trades]}).to_csv("results/Results_Trade.csv",index=False, mode='a', header=False)
+
 
             # print("=================================")
             #df_rewards = pd.DataFrame(self.rewards_memory)
             #df_rewards.to_csv('results/account_rewards_train.csv')
             #print('self.reward: {}'.format(np.mean(self.rewards_memory)))
+
             return self.state, self.reward, self.terminal, {}
 
         else:
             # print(np.array(self.state[1:29]))
             actions = actions
+
+
 
             # actions = (actions.astype(int))
             #print("actions {}".format(actions))
@@ -123,30 +120,29 @@ class StockEnvTrade(gym.Env):
             v_t_1 = np.array([1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
 
 
-            for index in range(1,STOCK_DIM+1):
-                # print('take buy action: {}'.format(actions[index]))
-                #print("while buying actions {}".format(self.state))
-                self.make_actions(index, actions[index])
+            numerator = np.exp(actions)
+            denominator = np.sum(np.exp(actions))
+            softmax_output = numerator / denominator
+
+
+            print(actions)
+            print(softmax_output)
 
             self.day += 1
             self.data = self.df.loc[self.day, :]
-            # load next state
 
-
-
-            self.state[0] = (1 - self.state[1] - self.state[2] - self.state[3])
+            self.state[0], self.state[1], self.state[2], self.state[3] = softmax_output
 
 
             # print("stock_shares:{}".format(self.state[29:]))
             self.state = [self.state[0]] + \
                          list(self.state[(1):(STOCK_DIM+ 1)]) + \
-                         self.data.adjcp.values.tolist() + \
-                         self.data.macd.values.tolist() + \
-                         self.data.rsi.values.tolist() + \
-                         self.data.cci.values.tolist() + \
-                         self.data.adx.values.tolist()
+                         self.data.adjcp.values.tolist()
 
-            v_t_0 = np.array( [1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
+
+
+
+            v_t_0 = np.array([1] + self.state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)])
 
             #print("state after buying actions {}".format(self.state))
 
@@ -178,12 +174,15 @@ class StockEnvTrade(gym.Env):
 
             self.asset_memory.append(self.P_t_0)
 
-            if self.P_t_0==0:
+
+            if self.P_t_0 == 0:
                 self.reward = -1
                 self.rewards_memory.append(0)
             else:
-                self.reward = (self.P_t_0/self.P_t_1) - 1
+                self.reward = np.log(self.P_t_0/self.P_t_1)
                 self.rewards_memory.append(self.reward)
+
+            self.rewards_memory.append(self.reward)
 
             self.P_t_1 = self.P_t_0
 
@@ -196,48 +195,22 @@ class StockEnvTrade(gym.Env):
         return self.state, self.reward, self.terminal, {}
 
     def reset(self):
-        self.P_t_1 = 1
+        self.P_t_1 =  1
         self.P_t_0 = 0
-        self.W_t_1 = [1, 0, 0, 0]
-        self.W_t = [1, 0, 0, 0]
+        self.W_t_1 = [1, 0 ,0 ,0]
+        self.W_t   = [1, 0 ,0 ,0]
         self.Yt = self.data.adjcp.values.tolist()
-
+        self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
         self.day = 0
         self.data = self.df.loc[self.day, :]
         self.cost = 0
         self.trades = 0
         self.terminal = False
         self.rewards_memory = []
-
-        if self.initial:
-            self.asset_memory = [INITIAL_ACCOUNT_BALANCE]
-
-            # initiate state
-            self.state = [INITIAL_ACCOUNT_BALANCE] + \
-                         [0] * STOCK_DIM + \
-                         self.data.adjcp.values.tolist() + \
-                         self.data.macd.values.tolist() + \
-                         self.data.rsi.values.tolist() + \
-                         self.data.cci.values.tolist() + \
-                         self.data.adx.values.tolist()
-
-        else:
-            previous_total_asset = self.previous_state[0] + \
-                                   sum(np.array(self.previous_state[1:(STOCK_DIM + 1)]) * np.array(
-                                       self.previous_state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]))
-
-            print(previous_total_asset)
-
-            self.asset_memory = [previous_total_asset]
-            self.state = [self.previous_state[0]] + \
-                         self.previous_state[(STOCK_DIM + 1):(STOCK_DIM * 2 + 1)]  + \
-                         self.data.adjcp.values.tolist() + \
-                         self.data.macd.values.tolist() + \
-                         self.data.rsi.values.tolist() + \
-                         self.data.cci.values.tolist() + \
-                         self.data.adx.values.tolist()
-
-
+        # initiate state
+        self.state = [INITIAL_ACCOUNT_BALANCE] + \
+                     [0] * STOCK_DIM + \
+                     self.data.adjcp.values.tolist()
         # iteration += 1
         return self.state
 

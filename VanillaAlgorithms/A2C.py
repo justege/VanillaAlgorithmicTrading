@@ -1,10 +1,10 @@
 import gym
 import time
 from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3 import PPO
-from environment import StockEnvTrain
-from environment_validation import StockEnvTest
-from environment_Trade import StockEnvValid
+from stable_baselines3 import A2C
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA import StockEnvTrainWithoutTA
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_Trade import StockEnvTradeWithoutTA
+from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_validation import StockEnvValidationWithTA
 from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
@@ -26,29 +26,38 @@ def data_split(df, start, end):
     return data
 
 
+preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/data/synthetic_portolio_ready.csv"
+data = pd.read_csv(preprocessed_path, index_col=0)
+
+"""
 preprocessed_path = "0001_test.csv"
 data = pd.read_csv(preprocessed_path, index_col=0)
 data = data.drop(columns=["datadate_full"])
 data = data[["datadate","tic","Close","open","high","low","volume","macd","rsi","cci","adx"]]
-#print(data.to_string())
-
+print(data.to_string())
 data.Close = data.Close.apply(np.int64)
 data.macd = data.macd.apply(np.int64)
 data.rsi = data.rsi.apply(np.int64)
 data.cci = data.cci.apply(np.int64)
 data.adx = data.adx.apply(np.int64)
+"""
+preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/model/0001_test.csv"
+data = pd.read_csv(preprocessed_path, index_col=0)
+data = data.drop(columns=["datadate_full"])
+data = data[["datadate","tic","adjcp"]]
+#print(data.to_string())
 
 
-train = data_split(data, start=20180101, end=20210101)
-validate = data_split(data, start=20210101, end=20220101)
-test_d = data_split(data, start=20220101, end=20221101)
+train = data_split(data, start=20171010, end=20220101)
+validate = data_split(data, start=20220101, end=20220601)
+test = data_split(data, start=20220601, end=20221011)
 
 
-env = DummyVecEnv([lambda: StockEnvTrain(train)])
-test_env = DummyVecEnv([lambda: StockEnvTest(test_d)])
-vali_env = DummyVecEnv([lambda: StockEnvValid(validate)])
+env = DummyVecEnv([lambda: StockEnvTrainWithoutTA(train)])
+test_env = DummyVecEnv([lambda: StockEnvTradeWithoutTA(test)])
+vali_env = DummyVecEnv([lambda: StockEnvValidationWithTA(validate)])
 
-BATCHES = 200
+BATCHES = 50
 TIMESTEPS = 20000
 
 seed = 2
@@ -73,16 +82,16 @@ for batch in range(FIRSTMODEL,BATCHES):
 
     if FIRSTMODEL == 0:
         print('First Model')
-        model = PPO('MlpPolicy', env, verbose=1, tensorboard_log=logdir, ent_coef = 0.005)
+        model = A2C('MlpPolicy', env, verbose=1, tensorboard_log=logdir)
         FIRSTMODEL = 1
     else:
         print('loading Model' + str(batch-1))
-        model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch - 1) + '.pth')
+        model = A2C.load("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch - 1) + '.pth')
         model.set_env(env)
 
 
     model.learn(total_timesteps=TIMESTEPS)
-    model.save("runs/PPO_"+str(TIMESTEPS)+'_'+str(batch)+'.pth')
+    model.save("runs/A2C_"+str(TIMESTEPS)+'_'+str(batch)+'.pth')
 
     rewardsl_v = []
     t_rewardsl = []
@@ -118,7 +127,7 @@ for batch in range(FIRSTMODEL,BATCHES):
     print('-------Finished Evaluating------')
 
 df_scores = pd.DataFrame(list(zip(batch_number,batch_rewardsl, t_batch_rewardsl)))
-df_scores.to_csv('CSVs/PPO_results_eval_mean.csv', mode='a', encoding='utf-8', index=True)
+df_scores.to_csv('CSVs/A2C_results_eval_mean.csv', mode='a', encoding='utf-8', index=True)
 print('mean of scores:{}'.format(np.mean(df_scores)))
 rewardsl = np.array(t_batch_rewardsl).mean()
 print(rewardsl)
