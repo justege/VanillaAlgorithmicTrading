@@ -11,6 +11,7 @@ from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
 from additional import *
+from results import *
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
 # Parallel environments
@@ -77,6 +78,7 @@ batch_sharpeL_train = []
 batch_FassetL_train = []
 
 FIRSTMODEL = 0
+
 for batch in range(FIRSTMODEL,BATCHES):
     env.reset()
     models_dir = f"models/{int(time.time())}/"
@@ -89,24 +91,28 @@ for batch in range(FIRSTMODEL,BATCHES):
         model.learn(total_timesteps=TIMESTEPS)
     else:
         print('loading Model' + str(batch-1))
-        model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch - 1) + '.pth')
+        model = PPO.load("runs/PPO_" + str(TIMESTEPS) + '_' + str(batch - 1), env=env)
+
         model.set_env(env)
         model.learn(total_timesteps=TIMESTEPS)
 
-    model.save("runs/PPO_"+str(TIMESTEPS)+'_'+str(batch)+'.pth')
+    model.save("runs/PPO_"+str(TIMESTEPS)+'_'+str(batch))
 
     rewardsl_v = []
     t_rewardsl = []
 
     score = 0
     print('-----begin validating----')
+    obs = vali_env.reset()
     for i in range(10):
         done = 0
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = vali_env.step(action)
+
             score = score + rewards
             if done:
+                print('score:{}'.format(score))
                 rewardsl_v.append(score)
                 score = 0
                 vali_env.reset()
@@ -114,17 +120,21 @@ for batch in range(FIRSTMODEL,BATCHES):
     batch_number.append(batch)
     print('-----finish validating----')
     print('-------Evaluating------')
+    obs = test_env.reset()
     for i in range(10):
-        done = 1
+        done = 0
         while not done:
             action, _states = model.predict(obs)
             obs, rewards, done, info = test_env.step(action)
             score = score + rewards
             if done:
+                print(score)
+                print(done)
                 t_rewardsl.append(score)
                 score = 0
                 test_env.reset()
-                break
+
+    print(t_rewardsl)
     t_batch_rewardsl.append(np.array(t_rewardsl).mean())
     print('-------Finished Evaluating------')
 

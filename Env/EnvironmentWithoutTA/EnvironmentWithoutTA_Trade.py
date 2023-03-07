@@ -104,13 +104,11 @@ class StockEnvTradeWithoutTA(gym.Env):
             #df_rewards.to_csv('results/account_rewards_train.csv')
             #print('self.reward: {}'.format(np.mean(self.rewards_memory)))
 
-            return self.state, self.reward, self.terminal, {}
+            return self.state, self.P_t_0, self.terminal, {}
 
         else:
             # print(np.array(self.state[1:29]))
             actions = actions
-
-
 
             # actions = (actions.astype(int))
             #print("actions {}".format(actions))
@@ -124,9 +122,6 @@ class StockEnvTradeWithoutTA(gym.Env):
             denominator = np.sum(np.exp(actions))
             softmax_output = numerator / denominator
 
-
-            print(actions)
-            print(softmax_output)
 
             self.day += 1
             self.data = self.df.loc[self.day, :]

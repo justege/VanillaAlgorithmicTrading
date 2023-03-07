@@ -20,7 +20,7 @@ INITIAL_ACCOUNT_BALANCE = 1
 STOCK_DIM = 3
 # transaction fee: 1/1000 reasonable percentage
 TRANSACTION_FEE_PERCENT = 0.0025
-REWARD_SCALING = 1000
+REWARD_SCALING = 1
 
 
 #[-0.7*HMAX_NORMALIZE, 0.5*HMAX_NORMALIZE,0.3*HMAX_NORMALIZE]
@@ -104,6 +104,10 @@ class StockEnvTrainWithoutTA(gym.Env):
             #df_rewards.to_csv('results/account_rewards_train.csv')
             #print('self.reward: {}'.format(np.mean(self.rewards_memory)))
 
+
+
+            info = {'mean reward': np.mean(self.rewards_memory), 'value_portfolio': self.P_t_0, 'sharpe': sharpe}
+
             return self.state, self.reward, self.terminal, {}
 
         else:
@@ -126,8 +130,8 @@ class StockEnvTrainWithoutTA(gym.Env):
             denominator = np.sum(np.exp(actions))
             softmax_output = numerator / denominator
 
-            print(actions)
-            print(softmax_output)
+            #print(actions)
+            #print(softmax_output)
 
             self.day += 1
             self.data = self.df.loc[self.day, :]
@@ -174,23 +178,17 @@ class StockEnvTrainWithoutTA(gym.Env):
 
             self.P_t_0 = np.clip(self.P_t_0, 0, np.inf)
 
+
+
             self.asset_memory.append(self.P_t_0)
 
-
-            if self.P_t_0 == 0:
-                self.reward = -1
-                self.rewards_memory.append(0)
-            else:
-                self.reward = np.log(self.P_t_0/self.P_t_1)
-                self.rewards_memory.append(self.reward)
+            self.reward = np.log((self.P_t_0 + (1e-7))/ (self.P_t_1 + (1e-7)))
 
             self.P_t_1 = self.P_t_0
 
-            #print("step_reward:{}".format(self.reward))
-            self.reward = self.reward * REWARD_SCALING
+            self.rewards_memory.append(self.reward)
 
-
-
+            info = {'mean reward': np.mean(self.rewards_memory), 'value_portfolio': self.P_t_0, 'reward': self.reward, 'weights': self.W_t}
 
         return self.state, self.reward, self.terminal, {}
 

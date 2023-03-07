@@ -4,9 +4,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3 import A2C
 import os
 import additional
-from Env.EnvironmentWithoutTA.EnvironmentWithoutTA import StockEnvTrainWithoutTA
+from Env.EnvironmentVersion3.environmentVersion3 import StockEnvTrainVersion3
+from Env.EnvironmentVersion3.ValidateEnvironmentVersion3 import StockEnvValidateVersion3
+
 from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_Trade import StockEnvTradeWithoutTA
-from Env.EnvironmentWithoutTA.EnvironmentWithoutTA_validation import StockEnvValidationWithTA
+from Env.EnvironmentWithTA.environment_validation import StockEnvValidationWithTA
+from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.env_util import make_vec_env
 import pandas as pd
 import numpy as np
@@ -30,42 +33,43 @@ def data_split(df, start, end):
     return data
 
 
+
 preprocessed_path = "/Users/egemenokur/PycharmProjects/VanillaAlgorithmicTrading/model/0001_test.csv"
 data = pd.read_csv(preprocessed_path, index_col=0)
 data = data.drop(columns=["datadate_full"])
-data = data[["datadate","tic","adjcp"]]
+
+
+data = data[["datadate", "tic", "adjcp", "open", "high", "low", "volume", "macd", "rsi", "cci", "adx"]]
+
+data['adjcp'] = round(data['adjcp'], 1)
+data['macd'] = round(data['macd'], 1)
+data['rsi'] = round(data['rsi'], 1)
+data['cci'] = round(data['cci'], 1)
+data['adx'] = round(data['adx'], 1)
+
+
 #print(data.to_string())
 
 
-train = data_split(data, start=20171010, end=20220101)
-validate = data_split(data, start=20220101, end=20220601)
-test = data_split(data, start=20220601, end=20221011)
+train = data_split(data, start=20160101, end=20200101)
+validate_data = data_split(data, start=20200101, end=20200301)
+test_data = data_split(data, start=20200301, end=20210301)
 
+TIMESTEPS = 10000
+env = DummyVecEnv([lambda: StockEnvTrainVersion3(train)])
+validate_env = DummyVecEnv([lambda: StockEnvValidateVersion3(validate_data)])
 
-env = DummyVecEnv([lambda: StockEnvTrainWithoutTA(train)])
-test_env = DummyVecEnv([lambda: StockEnvTradeWithoutTA(test)])
-vali_env = DummyVecEnv([lambda: StockEnvValidationWithTA(validate)])
-
-print(train)
-print(test)
-
-
-
-BATCHES = 50
-TIMESTEPS = 5000
+BATCHES = 200
 
 seed = 3
 env.seed(seed)
-test_env.seed(seed)
-vali_env.seed(seed)
-
+validate_env.seed(seed)
 
 batch_number = []
 batch_rewardsl = []
 t_batch_number = []
 t_batch_rewardsl = []
 train_batch_rewardsl = []
-
 
 batch_sharpeL_test = []
 batch_FassetL_test = []
@@ -77,101 +81,40 @@ batch_sharpeL_train = []
 batch_FassetL_train = []
 
 
-FIRSTMODEL = 0
+FIRSTMODEL = 62
 
-for batch in range(FIRSTMODEL,BATCHES):
+
+
+for batch in range(FIRSTMODEL,FIRSTMODEL+BATCHES):
     env.reset()
     models_dir = f"models/{int(time.time())}/"
     logdir = f"logs/{int(time.time())}/"
+
+    tensorboard_log = '/tmp/A2C' + str(TIMESTEPS) + '_' + str(batch-1)
+
     batch_number.append(batch)
 
     if FIRSTMODEL == 0:
         print('First Model')
-        n_actions = env.action_space.shape[-1]
-        action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=0.5 * np.ones(n_actions))
-        model = A2C("MlpPolicy", env )
+        model = A2C("MlpPolicy", env , tensorboard_log=tensorboard_log, verbose=1, n_steps=256, ent_coef=0.005,
+                    learning_rate=0.0007)
+
         model.learn(total_timesteps=int(TIMESTEPS))
         FIRSTMODEL = 1
+
         print('Model Finish')
+
     else:
         print('loading Model' + str(batch-1))
-        model = A2C.load("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch-1) + '.pth')
-        print('Model Finish')
+        model = A2C.load("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch-1))
         model.set_env(env)
         model.learn(total_timesteps=int(TIMESTEPS))
-    """
-    rewardsl_train = []
-    rewardsl_v = []
-    t_rewardsl = []
-    sharpel_train = []
-    sharpel_v = []
-    t_sharpel = []
-    cumretl_train = []
-    cumretl_v = []
-    t_cumretl = []
-    """
+        print('Model Finish')
 
+    vali_env = DummyVecEnv([lambda: StockEnvValidateVersion3(test_data, modelNumber=batch, tauValue=1, testOrTrain='train', extraInformation='A2C')])
 
-    score = 0
-
-    model.save("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch) + '.pth')
-    print('-----testing period validating----')
-    obs = env.reset()
-    for i in range(10):
-        done = 0
-        while not done:
-            action, _states = model.predict(obs)
-            obs, rewards, done, info = env.step(action)
-            if done:
-                env.reset()
-    print('-----testing period done----')
-    #train_batch_rewardsl.append(np.array(rewardsl_train).mean())
-    #batch_sharpeL_train.append(np.array(sharpel_train).mean())
-    #batch_FassetL_train.append(np.array(cumretl_train).mean())
-    print('-----begin validating----')
-    obs = vali_env.reset()
-    for i in range(10):
-        done = 0
-        while not done:
-            action, _states = model.predict(obs)
-            obs, rewards, done, info = vali_env.step(action)
-            if done:
-                #rewardsl_v.append(score)
-                #sharpel_v.append(vali_env.sharpe)
-                #cumretl_v.append(vali_env.final_asset_value)
-                score = 0
-                vali_env.reset()
-
-    #batch_sharpeL_validate.append(np.array(sharpel_v).mean())
-    #batch_FassetL_validate.append(np.array(cumretl_v).mean())
-    #batch_rewardsl.append(np.array(rewardsl_v).mean())
-    print('-----finish validating----')
-    print('-------Evaluating------')
-    obs = test_env.reset()
-    for i in range(10):
-        done = 0
-        while not done:
-            action, _states = model.predict(obs)
-            obs, rewards, done, info = test_env.step(action)
-            score = score + rewards
-            if done:
-                #rewardsl_v.append(score)
-                #sharpel_v.append(vali_env.sharpe)
-                #cumretl_v.append(vali_env.final_asset_value)
-                score = 0
-                test_env.reset()
-
-    #t_batch_rewardsl.append(np.array(t_rewardsl).mean())
-    #batch_sharpeL_test.append(np.array(sharpel_train).mean())
-    #batch_FassetL_test.append(np.array(cumretl_train).mean())
-
-    print('-------Finished Evaluating------')
-"""
-df_scores = pd.DataFrame(list(zip(batch_number,train_batch_rewardsl,batch_rewardsl, t_batch_rewardsl,batch_sharpeL_test,batch_FassetL_test, batch_sharpeL_validate, batch_FassetL_validate, batch_sharpeL_train,batch_FassetL_train)))
-df_scores.to_csv('CSVs/PPO_results_eval_mean.csv', mode='a', encoding='utf-8', index=True)
-print('mean of scores:{}'.format(np.mean(df_scores)))
-rewardsl = np.array(t_batch_rewardsl).mean()
-print(rewardsl)
-
-"""
+    vali_env.seed(seed)
+    model.save("runs/A2C_" + str(TIMESTEPS) + '_' + str(batch))
+    #evaluate_policy(model, env, n_eval_episodes=1, render=False, return_episode_rewards=True)
+    evaluate_policy(model, vali_env, n_eval_episodes=1, render=False, return_episode_rewards=True)
 
